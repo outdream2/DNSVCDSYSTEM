@@ -10,7 +10,14 @@ import GLBClone from './GLBClone';
 import { PANEL_DATA, GLB_VERSION, getDesc, getUnitId, getGlbKey } from '../data/panelData';
 import { Placement } from '../data/types';
 
-const GLBGrid = React.memo(function GLBGrid({ blinkingIds }: { blinkingIds: number[] }) {
+const COL_WIDTH = 2.0;
+const FLOOR_HEIGHT = 2.5;
+const START_X = 11;
+const ROW_Z: [number, number] = [-4.9, 4.9];
+
+// blinkingIdsRef: React.MutableRefObject<Set<number>> — 안정적인 ref 객체
+// → prop이 절대 바뀌지 않으므로 GLBGrid는 마운트 이후 재렌더링 없음
+const GLBGrid = React.memo(function GLBGrid({ blinkingIdsRef }: { blinkingIdsRef: React.MutableRefObject<Set<number>> }) {
   const { scene: sceneA } = useGLTF(`/A.glb?v=${GLB_VERSION}`);
   const { scene: sceneB } = useGLTF(`/B.glb?v=${GLB_VERSION}`);
   const { scene: sceneC } = useGLTF(`/C.glb?v=${GLB_VERSION}`);
@@ -34,22 +41,16 @@ const GLBGrid = React.memo(function GLBGrid({ blinkingIds }: { blinkingIds: numb
     G: new THREE.Box3().setFromObject(sceneG),
   }), [sceneA, sceneB, sceneC, sceneD, sceneE, sceneF, sceneG]);
 
-  const colWidth = 2.0;
-  const floorHeight = 2.5;
-  const START_X = 11;
-  const ROW_Z: [number, number] = [-4.9, 4.9];
-
   const placements = useMemo<Placement[]>(() => {
     const items: Placement[] = [];
 
-    // Right Side (Row 1): Entry(1,2) -> KOEN(23,24)
     for (let col = 0; col < 12; col++) {
       for (let floor = 0; floor < 2; floor++) {
         const isUpper = floor === 1;
         const panelId = col * 2 + (isUpper ? 1 : 2);
         items.push({
           key: `r1-c${col}-f${floor}`,
-          position: [START_X + col * colWidth, floor * floorHeight, ROW_Z[1]],
+          position: [START_X + col * COL_WIDTH, floor * FLOOR_HEIGHT, ROW_Z[1]],
           rotation: [0, Math.PI, 0],
           panelId,
           desc: getDesc(panelId),
@@ -58,13 +59,11 @@ const GLBGrid = React.memo(function GLBGrid({ blinkingIds }: { blinkingIds: numb
       }
     }
 
-    // Left Side (Row 0): Entry(47) -> KOEN(25,26)
     for (let col = 0; col < 12; col++) {
       if (col === 0) {
-        // Special 47 panel (Single in its cabinet location)
         items.push({
           key: `r0-c0-merged`,
-          position: [START_X + col * colWidth, 0, ROW_Z[0]],
+          position: [START_X + col * COL_WIDTH, 0, ROW_Z[0]],
           rotation: [0, 0, 0],
           panelId: 47,
           desc: getDesc(47),
@@ -79,7 +78,7 @@ const GLBGrid = React.memo(function GLBGrid({ blinkingIds }: { blinkingIds: numb
         const panelId = (47 - (col * 2)) + (isUpper ? 0 : 1);
         items.push({
           key: `r0-c${col}-f${floor}`,
-          position: [START_X + col * colWidth, floor * floorHeight, ROW_Z[0]],
+          position: [START_X + col * COL_WIDTH, floor * FLOOR_HEIGHT, ROW_Z[0]],
           rotation: [0, 0, 0],
           panelId,
           desc: getDesc(panelId),
@@ -88,7 +87,7 @@ const GLBGrid = React.memo(function GLBGrid({ blinkingIds }: { blinkingIds: numb
       }
     }
     return items;
-  }, [colWidth, floorHeight]);
+  }, []);
 
   return (
     <>
@@ -104,7 +103,7 @@ const GLBGrid = React.memo(function GLBGrid({ blinkingIds }: { blinkingIds: numb
             panelId={panelId}
             desc={desc}
             unitId={unitId}
-            isBlinking={blinkingIds.includes(panelId)}
+            blinkingIdsRef={blinkingIdsRef}
             doubleHeight={doubleHeight}
           />
         );

@@ -8,7 +8,9 @@ import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 
-const GLBClone = React.memo(function GLBClone({ baseScene, position, rotation, glbBox, panelId, desc, unitId, isBlinking, doubleHeight }: {
+// blinkingIdsRef는 안정적인 ref 객체 → GLBClone이 마운트 이후 절대 재렌더링되지 않음
+// 블링킹 상태는 useFrame에서 ref.current.has(panelId)로 매 프레임 직접 읽음
+const GLBClone = React.memo(function GLBClone({ baseScene, position, rotation, glbBox, panelId, desc, unitId, blinkingIdsRef, doubleHeight }: {
   baseScene: THREE.Group;
   position: [number, number, number];
   rotation: [number, number, number];
@@ -16,7 +18,7 @@ const GLBClone = React.memo(function GLBClone({ baseScene, position, rotation, g
   panelId: number;
   desc: string;
   unitId: string;
-  isBlinking: boolean;
+  blinkingIdsRef: React.MutableRefObject<Set<number>>;
   doubleHeight?: boolean;
 }) {
   const cloned = useMemo(() => baseScene.clone(), [baseScene]);
@@ -25,7 +27,7 @@ const GLBClone = React.memo(function GLBClone({ baseScene, position, rotation, g
 
   useFrame(({ clock }) => {
     if (!blinkOverlayRef.current) return;
-    if (isBlinking) {
+    if (blinkingIdsRef.current.has(panelId)) {
       const isOn = Math.floor(clock.elapsedTime * 6) % 2 === 0;
       blinkOverlayRef.current.opacity = isOn ? 0.55 : 0;
     } else {
@@ -33,7 +35,6 @@ const GLBClone = React.memo(function GLBClone({ baseScene, position, rotation, g
     }
   });
 
-  // 목표 틀 크기 (하나의 판넬 칸 기준)
   const TARGET_PW = 2.0;
   const TARGET_PH = 2.5;
   const TARGET_PD = 1.0;
@@ -42,18 +43,17 @@ const GLBClone = React.memo(function GLBClone({ baseScene, position, rotation, g
     const size = glbBox.getSize(new THREE.Vector3());
     const center = glbBox.getCenter(new THREE.Vector3());
 
-    // 모델을 틀에 꽉 채우기 위한 스케일 계산
     const currentPH = doubleHeight ? TARGET_PH * 2.07 : TARGET_PH;
-    const currentPD = doubleHeight ? TARGET_PD * 0.96 : TARGET_PD; // 두께 살짝 보정 (47번 등)
+    const currentPD = doubleHeight ? TARGET_PD * 0.96 : TARGET_PD;
     const scaleX = TARGET_PW / size.x;
     const scaleY = currentPH / size.y;
     const scaleZ = currentPD / size.z;
 
     return {
       finalScale: [scaleX, scaleY, scaleZ] as [number, number, number],
-      cx: 0, // 중앙 정렬 위해 0
-      cy: currentPH / 2, // 바닥 기준 절반 높이
-      fz: currentPD / 2 + 0.002, // 앞면 돌출
+      cx: 0,
+      cy: currentPH / 2,
+      fz: currentPD / 2 + 0.002,
       pw: TARGET_PW,
       ph: currentPH,
       modelOffset: [-center.x * scaleX, -glbBox.min.y * scaleY, -center.z * scaleZ] as [number, number, number],
@@ -64,7 +64,6 @@ const GLBClone = React.memo(function GLBClone({ baseScene, position, rotation, g
 
   return (
     <group ref={groupRef} position={position} rotation={rotation}>
-      {/* 모델링 파일을 틀 중앙/바닥 기준으로 배치 */}
       <primitive object={cloned} scale={finalScale} position={modelOffset} />
 
       {/* 앞면 전체 블링킹 오버레이 */}
@@ -73,19 +72,19 @@ const GLBClone = React.memo(function GLBClone({ baseScene, position, rotation, g
         <meshBasicMaterial ref={blinkOverlayRef} color="#dd1111" transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {/* 명판 엠보싱 그림자 (80%) */}
+      {/* 명판 엠보싱 그림자 */}
       <mesh position={[cx, cy + ph * 0.327, fz + 0.002]}>
         <planeGeometry args={[pw * 0.742, ph * 0.254]} />
         <meshStandardMaterial color="#05080d" metalness={0} roughness={1} transparent opacity={0.4} />
       </mesh>
 
-      {/* 정밀 CNC 아노다이징 프레임 (80%) */}
+      {/* 정밀 CNC 아노다이징 프레임 */}
       <mesh position={[cx, cy + ph * 0.33, fz + 0.003]}>
         <planeGeometry args={[pw * 0.726, ph * 0.245]} />
         <meshStandardMaterial color="#1b2434" metalness={1.0} roughness={0.20} envMapIntensity={1.6} />
       </mesh>
 
-      {/* 명판 본체 — 브러시드 알루미늄 (80%) */}
+      {/* 명판 본체 — 브러시드 알루미늄 */}
       <mesh position={[cx, cy + ph * 0.33, fz + 0.004]}>
         <planeGeometry args={[pw * 0.700, ph * 0.218]} />
         <meshStandardMaterial color="#c2ccd5" metalness={0.78} roughness={0.14} envMapIntensity={3.0} />

@@ -19,8 +19,6 @@ export type SceneHandle = {
   startAnimation: (ids: number[]) => void;
 };
 
-// targetSubIds는 prop이 아닌 내부 imperative trigger로 처리
-// → 외부 상태 변화가 Canvas/Scene 리렌더링을 유발하지 않음
 const SceneComponent = React.forwardRef<SceneHandle, {
   clearActivePanels: () => void;
   onCameraUpdate: (pos: { x: number; z: number; rotation: number }) => void;
@@ -31,7 +29,6 @@ const SceneComponent = React.forwardRef<SceneHandle, {
   const controlsRef = useRef<any>(null);
   const cancelledRef = useRef(false);
 
-  // imperative 트리거: startAnimation 호출 시 이 ref + state를 갱신
   const animationTriggerRef = useRef<number[]>([]);
   const [animationTick, setAnimationTick] = useState(0);
 
@@ -42,7 +39,10 @@ const SceneComponent = React.forwardRef<SceneHandle, {
 
   const [moving, setMoving] = useState(false);
   const [pathArrows, setPathArrows] = useState<{ position: [number, number, number], target: [number, number, number] }[]>([]);
-  const [blinkingIds, setBlinkingIds] = useState<number[]>([]);
+
+  // blinkingIds를 React state 대신 ref로 관리 → GLBGrid/GLBClone 재렌더링 완전 차단
+  const blinkingSetRef = useRef<Set<number>>(new Set());
+
   const lastUpdatePos = useRef(new THREE.Vector3());
   const lastUpdateRot = useRef(0);
   const sequenceRunning = useRef(false);
@@ -52,7 +52,7 @@ const SceneComponent = React.forwardRef<SceneHandle, {
       cancelledRef.current = true;
       sequenceRunning.current = false;
       setMoving(false);
-      setBlinkingIds([]);
+      blinkingSetRef.current = new Set();
       setPathArrows([]);
       gsap.killTweensOf(camera.position);
       gsap.killTweensOf(camera);
@@ -207,10 +207,10 @@ const SceneComponent = React.forwardRef<SceneHandle, {
     cancelledRef.current = false;
 
     if (ids.length > 1) {
-      setBlinkingIds(ids);
+      blinkingSetRef.current = new Set(ids);
       const t = setTimeout(() => {
         if (!cancelledRef.current) {
-          setBlinkingIds([]);
+          blinkingSetRef.current = new Set();
           clearActivePanels();
         }
       }, 5000);
@@ -226,7 +226,7 @@ const SceneComponent = React.forwardRef<SceneHandle, {
     sequenceRunning.current = true;
 
     const run = async () => {
-      setBlinkingIds(ids);
+      blinkingSetRef.current = new Set(ids);
 
       let closestPanelId = ids[0];
       let minDistance = Infinity;
@@ -277,7 +277,7 @@ const SceneComponent = React.forwardRef<SceneHandle, {
       if (!cancelledRef.current) {
         await wait(5000);
         if (!cancelledRef.current) {
-          setBlinkingIds([]);
+          blinkingSetRef.current = new Set();
           await clearActivePanels();
           sequenceRunning.current = false;
         }
@@ -290,7 +290,7 @@ const SceneComponent = React.forwardRef<SceneHandle, {
       cancelledRef.current = true;
       sequenceRunning.current = false;
       setMoving(false);
-      setBlinkingIds([]);
+      blinkingSetRef.current = new Set();
       setPathArrows([]);
       gsap.killTweensOf(camera.position);
       gsap.killTweensOf(camera);
@@ -320,20 +320,18 @@ const SceneComponent = React.forwardRef<SceneHandle, {
         <PathArrow key={idx} index={idx} position={arrow.position} target={arrow.target} />
       ))}
 
-      <GLBGrid blinkingIds={blinkingIds} />
+      <GLBGrid blinkingIdsRef={blinkingSetRef} />
       <StaticEnvironment />
 
       <React.Suspense fallback={null}>
-        <React.Suspense fallback={null}>
-          <Float speed={1} rotationIntensity={0.2} floatIntensity={0.2}>
-            <Text position={[0, 4.5, -8]} fontSize={0.6} color="#10b981" maxWidth={10} textAlign="center">
-              ELECTRICAL PANEL MONITORING
-            </Text>
-            <Text position={[0, 3.8, -8]} fontSize={0.2} color="#475569" fillOpacity={0.8}>
-              {moving ? "Walking to panel..." : "Use Arrow Keys to walk"}
-            </Text>
-          </Float>
-        </React.Suspense>
+        <Float speed={1} rotationIntensity={0.2} floatIntensity={0.2}>
+          <Text position={[0, 4.5, -8]} fontSize={0.6} color="#10b981" maxWidth={10} textAlign="center">
+            ELECTRICAL PANEL MONITORING
+          </Text>
+          <Text position={[0, 3.8, -8]} fontSize={0.2} color="#475569" fillOpacity={0.8}>
+            {moving ? "Walking to panel..." : "Use Arrow Keys to walk"}
+          </Text>
+        </Float>
       </React.Suspense>
     </>
   );
