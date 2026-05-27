@@ -1,19 +1,6 @@
-// ─── 공유 타입 정의 ────────────────────────────────────────────────
+// 서버·클라이언트 공유 타입 — shared/types.ts가 단일 정의 소스
 // 실제 데이터 접근은 server/db/ 레포지토리를 사용하세요.
-
-export interface Operation {
-  id: number;
-  panelId: number;
-  unitId: string;
-  panelName: string;
-  opType: 'KEY CLOSED' | 'KEY OPEN' | 'KEY ALERT';
-  operator: string;
-  department: string;
-  purpose: string;
-  status: '완료' | '진행중' | '실패';
-  notes: string;
-  operatedAt: string;
-}
+export type { ActivePanel, Operation } from '../../shared/types';
 
 // ─── MSSQL 테이블 스키마 (VCD_Operations) ─────────────────────────
 // CREATE TABLE VCD_Operations (

@@ -5,6 +5,7 @@ import fs from 'fs';
 import cors from 'cors';
 import { setupPanelRoutes } from './routes/panels';
 import { setupOperationRoutes } from './routes/operations';
+import { setupEventRoutes } from './routes/events';
 
 export async function startServer(): Promise<void> {
   const app = express();
@@ -31,6 +32,7 @@ export async function startServer(): Promise<void> {
     }
   });
 
+  setupEventRoutes(app);
   setupPanelRoutes(app);
   setupOperationRoutes(app);
 

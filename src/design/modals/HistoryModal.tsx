@@ -1,5 +1,6 @@
 import React from 'react';
 import { Operation } from '../../data/types';
+import { getOperations } from '../../api/operationApi';
 
 function HistoryModal({ onClose }: { onClose: () => void }) {
   const [ops, setOps] = React.useState<Operation[]>([]);
@@ -8,12 +9,9 @@ function HistoryModal({ onClose }: { onClose: () => void }) {
   const [filterDate, setFilterDate] = React.useState('');
 
   React.useEffect(() => {
-    const params = new URLSearchParams();
-    if (filterStatus) params.set('status', filterStatus);
-    if (filterDate) params.set('from', filterDate);
-    fetch('/api/operations?' + params.toString())
-      .then(r => r.json())
-      .then(d => { setOps(d.operations ?? []); setLoading(false); })
+    setLoading(true);
+    getOperations({ status: filterStatus || undefined, from: filterDate || undefined })
+      .then(ops => { setOps(ops); setLoading(false); })
       .catch(() => setLoading(false));
   }, [filterStatus, filterDate]);
 

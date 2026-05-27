@@ -1,5 +1,6 @@
 import React from 'react';
 import { Operation } from '../../data/types';
+import { getOperations } from '../../api/operationApi';
 
 function StatusModal({ onClose }: { onClose: () => void }) {
   const [ops, setOps] = React.useState<Operation[]>([]);
@@ -7,10 +8,7 @@ function StatusModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = React.useState<'전체' | '진행중' | '완료' | '실패'>('전체');
 
   React.useEffect(() => {
-    fetch('/api/operations')
-      .then(r => r.json())
-      .then(d => { setOps(d.operations ?? []); setLoading(false); })
-      .catch(() => setLoading(false));
+    getOperations().then(ops => { setOps(ops); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
   const filtered = tab === '전체' ? ops : ops.filter(o => o.status === tab);

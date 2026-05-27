@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useImperativeHandle } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Float, Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -12,30 +12,65 @@ import GLBGrid from './GLBGrid';
 import StaticEnvironment from './StaticEnvironment';
 import PathArrow from './PathArrow';
 
-// Stable initial target — module-level constant prevents new object on every render
 const INITIAL_TARGET = new THREE.Vector3(40, 2.8, 0);
 
-const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCameraUpdate, panels, isOperationActive }: { targetSubIds: number[], clearActivePanels: () => void, onCameraUpdate: (pos: { x: number, z: number, rotation: number }) => void, panels: any[], isOperationActive: boolean }) {
+export type SceneHandle = {
+  cancelAnimation: () => void;
+  startAnimation: (ids: number[]) => void;
+};
+
+// targetSubIds는 prop이 아닌 내부 imperative trigger로 처리
+// → 외부 상태 변화가 Canvas/Scene 리렌더링을 유발하지 않음
+const SceneComponent = React.forwardRef<SceneHandle, {
+  clearActivePanels: () => void;
+  onCameraUpdate: (pos: { x: number; z: number; rotation: number }) => void;
+  panels: any[];
+  isOperationActiveRef: React.MutableRefObject<boolean>;
+}>(function Scene({ clearActivePanels, onCameraUpdate, panels, isOperationActiveRef }, ref) {
   const { camera } = useThree();
   const controlsRef = useRef<any>(null);
+  const cancelledRef = useRef(false);
+
+  // imperative 트리거: startAnimation 호출 시 이 ref + state를 갱신
+  const animationTriggerRef = useRef<number[]>([]);
+  const [animationTick, setAnimationTick] = useState(0);
 
   const colWidth = 2.0;
   const floorHeight = 2.5;
   const START_X = 10;
   const ROW_Z: [number, number] = [-4.9, 4.9];
 
-  const [selectedPos, setSelectedPos] = useState<[number, number, number] | null>(null);
   const [moving, setMoving] = useState(false);
   const [pathArrows, setPathArrows] = useState<{ position: [number, number, number], target: [number, number, number] }[]>([]);
   const [blinkingIds, setBlinkingIds] = useState<number[]>([]);
   const lastUpdatePos = useRef(new THREE.Vector3());
   const lastUpdateRot = useRef(0);
-
   const sequenceRunning = useRef(false);
+
+  useImperativeHandle(ref, () => ({
+    cancelAnimation: () => {
+      cancelledRef.current = true;
+      sequenceRunning.current = false;
+      setMoving(false);
+      setBlinkingIds([]);
+      setPathArrows([]);
+      gsap.killTweensOf(camera.position);
+      gsap.killTweensOf(camera);
+      if (controlsRef.current) {
+        gsap.killTweensOf(controlsRef.current.target);
+        camera.position.set(-6, 4.0, 0);
+        controlsRef.current.target.set(40, 2.8, 0);
+        controlsRef.current.update();
+      }
+    },
+    startAnimation: (ids: number[]) => {
+      animationTriggerRef.current = ids;
+      setAnimationTick(prev => prev + 1);
+    },
+  }), []);
 
   const wait = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
-  // 화살표 경로 계산 (순수 함수)
   const computeArrows = (startPos: THREE.Vector3, pos: [number, number, number]) => {
     const aisleZ = 0;
     const visualPts = [
@@ -67,7 +102,6 @@ const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCam
     });
   };
 
-  // 패널까지 이동 (Promise 반환)
   const walkToPanel = (exactPos: { x: number, y: number, z: number, camZ: number }): Promise<void> =>
     new Promise(resolve => {
       if (!controlsRef.current) { resolve(); return; }
@@ -85,7 +119,6 @@ const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCam
       }, 0);
     });
 
-  // 홈으로 복귀 (Promise 반환)
   const goHome = (): Promise<void> =>
     new Promise(resolve => {
       if (!controlsRef.current) { setMoving(false); resolve(); return; }
@@ -103,7 +136,6 @@ const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCam
       }, 0);
     });
 
-  // Keyboard state for navigation
   const keys = useRef<{ [key: string]: boolean }>({});
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { keys.current[e.key] = true; };
@@ -116,17 +148,11 @@ const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCam
     };
   }, []);
 
-  // Monitor OrbitControls for manual interaction
-  useEffect(() => {
-    if (controlsRef.current) {
-      const controls = controlsRef.current;
-      const handleChange = () => { /* Inactivity timer removed */ };
-      controls.addEventListener('change', handleChange);
-      return () => controls.removeEventListener('change', handleChange);
-    }
-  }, []);
-
   useFrame((state, delta) => {
+    if (controlsRef.current && controlsRef.current.enableZoom !== isOperationActiveRef.current) {
+      controlsRef.current.enableZoom = isOperationActiveRef.current;
+    }
+
     const px = Math.round(state.camera.position.x * 100) / 100;
     const pz = Math.round(state.camera.position.z * 100) / 100;
     const rot = Math.round(state.camera.rotation.y * 1000) / 1000;
@@ -139,7 +165,7 @@ const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCam
       lastUpdateRot.current = rot;
     }
 
-    if (moving || sequenceRunning.current || !isOperationActive) return;
+    if (moving || sequenceRunning.current || !isOperationActiveRef.current) return;
 
     const speed = 0.75 * delta;
     const direction = new THREE.Vector3();
@@ -149,7 +175,6 @@ const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCam
     camera.getWorldDirection(frontVector);
     frontVector.y = 0;
     frontVector.normalize();
-
     sideVector.copy(frontVector).cross(camera.up).normalize();
 
     if (keys.current['ArrowUp'] || keys.current['w'] || keys.current['W']) direction.add(frontVector);
@@ -160,12 +185,10 @@ const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCam
     if (direction.length() > 0) {
       if (pathArrows.length > 0) setPathArrows([]);
       direction.normalize().multiplyScalar(speed);
-
       const nextPos = camera.position.clone().add(direction);
       const isInsidePanelRow1 = nextPos.z > -4.4 && nextPos.z < -3.6 && nextPos.x > -10 && nextPos.x < 10;
       const isInsidePanelRow2 = nextPos.z > 3.6 && nextPos.z < 4.4 && nextPos.x > -10 && nextPos.x < 10;
       const isOutsideRoom = nextPos.x < -24 || nextPos.x > 35 || Math.abs(nextPos.z) > 4.2;
-
       if (!isInsidePanelRow1 && !isInsidePanelRow2 && !isOutsideRoom) {
         camera.position.add(direction);
         if (controlsRef.current) {
@@ -176,111 +199,84 @@ const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCam
     }
   });
 
-  // 메인 시퀀스: 2사이클 (패널깜박 → 경로깜박 → 이동 → 복귀)
+  // ── 애니메이션 시퀀스: startAnimation()이 호출될 때만 실행 ──
   useEffect(() => {
-    if (targetSubIds.length === 0) return;
+    const ids = animationTriggerRef.current;
+    if (ids.length === 0) return;
 
-    if (targetSubIds.length > 1) {
-      setBlinkingIds(targetSubIds);
+    cancelledRef.current = false;
+
+    if (ids.length > 1) {
+      setBlinkingIds(ids);
       const t = setTimeout(() => {
-        setBlinkingIds([]);
-        clearActivePanels();
+        if (!cancelledRef.current) {
+          setBlinkingIds([]);
+          clearActivePanels();
+        }
       }, 5000);
-      return () => clearTimeout(t);
+      return () => {
+        clearTimeout(t);
+        cancelledRef.current = true;
+      };
     }
 
-    const panel = panels.find((p: any) => p.upperId === targetSubIds[0] || p.lowerId === targetSubIds[0]);
+    const panel = panels.find((p: any) => p.upperId === ids[0] || p.lowerId === ids[0]);
     if (!panel) return;
 
-    let cancelled = false;
     sequenceRunning.current = true;
 
     const run = async () => {
-      setBlinkingIds(targetSubIds);
+      setBlinkingIds(ids);
 
-      let closestPanelId = targetSubIds[0];
+      let closestPanelId = ids[0];
       let minDistance = Infinity;
+      const S_X = 11;
+      const R_Z: [number, number] = [-4.9, 4.9];
 
-      const START_X = 11;
-      const ROW_Z: [number, number] = [-4.9, 4.9];
-
-      for (const pid of targetSubIds) {
+      for (const pid of ids) {
         let pRow, pCol;
-        if (pid <= 24) {
-          pRow = 1;
-          pCol = Math.floor((pid - 1) / 2);
-        } else if (pid === 47) {
-          pRow = 0;
-          pCol = 0;
-        } else {
-          pRow = 0;
-          const startId = pid % 2 === 1 ? pid : pid - 1;
-          pCol = (47 - startId) / 2;
-        }
-
-        const pExactX = START_X + pCol * colWidth;
-        const pExactZ = ROW_Z[pRow];
-
-        const dist = Math.hypot(camera.position.x - pExactX, camera.position.z - pExactZ);
-        if (dist < minDistance) {
-          minDistance = dist;
-          closestPanelId = pid;
-        }
+        if (pid <= 24) { pRow = 1; pCol = Math.floor((pid - 1) / 2); }
+        else if (pid === 47) { pRow = 0; pCol = 0; }
+        else { pRow = 0; const s = pid % 2 === 1 ? pid : pid - 1; pCol = (47 - s) / 2; }
+        const dist = Math.hypot(camera.position.x - (S_X + pCol * colWidth), camera.position.z - R_Z[pRow]);
+        if (dist < minDistance) { minDistance = dist; closestPanelId = pid; }
       }
 
       const panelId = closestPanelId;
       let row, col, floor;
-      if (panelId <= 24) {
-        row = 1;
-        col = Math.floor((panelId - 1) / 2);
-        floor = panelId % 2 === 1 ? 1 : 0;
-      } else if (panelId === 47) {
-        row = 0;
-        col = 0;
-        floor = 1;
-      } else {
-        row = 0;
-        const startId = panelId % 2 === 1 ? panelId : panelId - 1;
-        col = (47 - startId) / 2;
-        floor = panelId % 2 === 1 ? 1 : 0;
-      }
+      if (panelId <= 24) { row = 1; col = Math.floor((panelId - 1) / 2); floor = panelId % 2 === 1 ? 1 : 0; }
+      else if (panelId === 47) { row = 0; col = 0; floor = 1; }
+      else { row = 0; const s = panelId % 2 === 1 ? panelId : panelId - 1; col = (47 - s) / 2; floor = panelId % 2 === 1 ? 1 : 0; }
 
-      const exactX = START_X + col * colWidth;
-      const exactY = floor * floorHeight + (panelId === 47 ? floorHeight : (floorHeight / 2));
-      const exactZ = ROW_Z[row];
-
-      const distance = 8.0;
-      const camZ = row === 0 ? exactZ + distance : exactZ - distance;
+      const exactX = 11 + col * colWidth;
+      const exactY = floor * floorHeight + (panelId === 47 ? floorHeight : floorHeight / 2);
+      const exactZ = R_Z[row];
+      const camZ = row === 0 ? exactZ + 8.0 : exactZ - 8.0;
 
       for (let cycle = 0; cycle < 2; cycle++) {
-        if (cancelled) break;
-
+        if (cancelledRef.current) break;
         await wait(1000);
-        if (cancelled) break;
+        if (cancelledRef.current) break;
 
-        const arrows = computeArrows(camera.position.clone(), [exactX, 0, ROW_Z[row]]);
+        const arrows = computeArrows(camera.position.clone(), [exactX, 0, R_Z[row]]);
         for (let i = 0; i < 3; i++) {
-          if (cancelled) break;
-          setPathArrows(arrows);
-          await wait(350);
-          setPathArrows([]);
-          await wait(250);
+          if (cancelledRef.current) break;
+          setPathArrows(arrows); await wait(350);
+          setPathArrows([]); await wait(250);
         }
-        if (cancelled) break;
+        if (cancelledRef.current) break;
         setPathArrows(arrows);
         await wait(300);
-
         await walkToPanel({ x: exactX, y: exactY, z: exactZ, camZ });
-        if (cancelled) break;
-
+        if (cancelledRef.current) break;
         setPathArrows([]);
         await goHome();
-        if (cancelled) break;
+        if (cancelledRef.current) break;
       }
 
-      if (!cancelled) {
+      if (!cancelledRef.current) {
         await wait(5000);
-        if (!cancelled) {
+        if (!cancelledRef.current) {
           setBlinkingIds([]);
           await clearActivePanels();
           sequenceRunning.current = false;
@@ -291,7 +287,7 @@ const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCam
     run();
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
       sequenceRunning.current = false;
       setMoving(false);
       setBlinkingIds([]);
@@ -303,7 +299,7 @@ const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCam
         controlsRef.current.update();
       }
     };
-  }, [targetSubIds.join(',')]);
+  }, [animationTick]);
 
   return (
     <>
@@ -317,42 +313,31 @@ const Scene = React.memo(function Scene({ targetSubIds, clearActivePanels, onCam
         maxPolarAngle={Math.PI}
         enablePan={false}
         enableRotate={false}
-        enableZoom={isOperationActive}
+        enableZoom={false}
       />
 
       {pathArrows.map((arrow, idx) => (
-        <PathArrow
-          key={idx}
-          index={idx}
-          position={arrow.position}
-          target={arrow.target}
-        />
+        <PathArrow key={idx} index={idx} position={arrow.position} target={arrow.target} />
       ))}
 
       <GLBGrid blinkingIds={blinkingIds} />
       <StaticEnvironment />
 
-      <Float speed={1} rotationIntensity={0.2} floatIntensity={0.2}>
-        <Text
-          position={[0, 4.5, -8]}
-          fontSize={0.6}
-          color="#10b981"
-          maxWidth={10}
-          textAlign="center"
-        >
-          ELECTRICAL PANEL MONITORING
-        </Text>
-        <Text
-          position={[0, 3.8, -8]}
-          fontSize={0.2}
-          color="#475569"
-          fillOpacity={0.8}
-        >
-          {moving ? "Walking to panel..." : "Use Arrow Keys to walk • Click panel to inspect • Click open door to close"}
-        </Text>
-      </Float>
+      <React.Suspense fallback={null}>
+        <React.Suspense fallback={null}>
+          <Float speed={1} rotationIntensity={0.2} floatIntensity={0.2}>
+            <Text position={[0, 4.5, -8]} fontSize={0.6} color="#10b981" maxWidth={10} textAlign="center">
+              ELECTRICAL PANEL MONITORING
+            </Text>
+            <Text position={[0, 3.8, -8]} fontSize={0.2} color="#475569" fillOpacity={0.8}>
+              {moving ? "Walking to panel..." : "Use Arrow Keys to walk"}
+            </Text>
+          </Float>
+        </React.Suspense>
+      </React.Suspense>
     </>
   );
 });
 
+const Scene = React.memo(SceneComponent);
 export default Scene;

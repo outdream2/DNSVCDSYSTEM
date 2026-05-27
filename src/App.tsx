@@ -5,7 +5,7 @@ import { Html } from '@react-three/drei';
 import { ActivePanel, Operation } from './data/types';
 import { PANEL_DATA } from './data/panelData';
 
-import Scene from './scene/Scene';
+import Scene, { SceneHandle } from './scene/Scene';
 import FloorPlan from './design/FloorPlan';
 import Header from './design/layout/Header';
 import Sidebar from './design/layout/Sidebar';
@@ -15,7 +15,10 @@ import CompleteModal from './design/modals/CompleteModal';
 import OpDetailModal from './design/modals/OpDetailModal';
 import HistoryModal from './design/modals/HistoryModal';
 
+// ─── 모듈 레벨 상수: 렌더링마다 새 객체 생성 방지 ───────────────────────────
 const CANVAS_CAMERA = { position: [-6, 4.0, 0] as [number, number, number], fov: 30, near: 0.1, far: 1000 };
+const CANVAS_DPR: [number, number] = [1, 2];
+const CANVAS_STYLE: React.CSSProperties = { display: 'block', width: '100%', height: '100%', background: '#0a0a0a' };
 
 const ROW_Z = [-4.9, 4.9] as const;
 const START_X = 11;
@@ -60,6 +63,42 @@ const LOADING_FALLBACK = (
   </Html>
 );
 
+// ─── 완전 격리된 3D Canvas 래퍼 ──────────────────────────────────────────────
+// 마운트 후 절대 재렌더링 없음 → 모든 prop이 안정적인 ref/callback
+const ThreeDView = React.memo(function ThreeDView({
+  sceneRef,
+  clearActivePanels,
+  onCameraUpdate,
+  isOperationActiveRef,
+}: {
+  sceneRef: React.RefObject<SceneHandle>;
+  clearActivePanels: () => void;
+  onCameraUpdate: (pos: { x: number; z: number; rotation: number }) => void;
+  isOperationActiveRef: React.MutableRefObject<boolean>;
+}) {
+  return (
+    <Canvas shadows dpr={CANVAS_DPR} className="w-full h-full"
+      style={CANVAS_STYLE}
+      camera={CANVAS_CAMERA}>
+      <Suspense fallback={LOADING_FALLBACK}>
+        <Scene
+          ref={sceneRef}
+          clearActivePanels={clearActivePanels}
+          onCameraUpdate={onCameraUpdate}
+          panels={PANELS}
+          isOperationActiveRef={isOperationActiveRef}
+        />
+      </Suspense>
+    </Canvas>
+  );
+}, (prev, next) =>
+  prev.clearActivePanels === next.clearActivePanels &&
+  prev.onCameraUpdate === next.onCameraUpdate &&
+  prev.sceneRef === next.sceneRef &&
+  prev.isOperationActiveRef === next.isOperationActiveRef
+);
+
+// ─── App ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [activeSideBtn, setActiveSideBtn] = useState('조작 등록');
   const [targetPanels, setTargetPanels] = useState<ActivePanel[]>([]);
@@ -68,7 +107,8 @@ export default function App() {
   const [showStart, setShowStart] = useState(false);
   const [showComplete, setShowComplete] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [isOperationActive, setIsOperationActive] = useState(false);
+  const isOperationActiveRef = useRef(false);
+  const sceneRef = useRef<SceneHandle>(null);
   const [statusOps, setStatusOps] = useState<Operation[]>([]);
   const [statusLoading, setStatusLoading] = useState(true);
   const [selectedOp, setSelectedOp] = useState<Operation | null>(null);
@@ -91,7 +131,13 @@ export default function App() {
         const data = await fetch('/api/active-panels').then(r => r.json());
         if (Array.isArray(data.panels)) {
           const s = JSON.stringify(data.panels);
-          if (s !== lastFetchedRef.current) { lastFetchedRef.current = s; setTargetPanels(data.panels); }
+          if (s !== lastFetchedRef.current) {
+            lastFetchedRef.current = s;
+            setTargetPanels(data.panels);
+            if (data.panels.length > 0) {
+              sceneRef.current?.startAnimation(data.panels.map((p: any) => p.id));
+            }
+          }
         }
       } catch {}
     };
@@ -99,7 +145,7 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  const targetSubIds = useMemo(() => targetPanels.map(p => p.id), [targetPanels]);
+  const targetSubIds = useMemo(() => targetPanels.map(p => p.id), [targetPanels]); // FloorPlan/Header 전용
 
   const clearTargetPanels = useCallback(async () => {
     try { await fetch('/api/active-panels', { method: 'DELETE' }); } catch {}
@@ -107,10 +153,28 @@ export default function App() {
     setTargetPanels([]);
   }, []);
 
+  // 버튼 클릭 시 카메라 애니메이션 즉시 취소 + 홈 복귀
+  const handleRegister = useCallback(() => {
+    sceneRef.current?.cancelAnimation();
+    setShowRegistration(true);
+  }, []);
+  const handleStart = useCallback(() => {
+    sceneRef.current?.cancelAnimation();
+    setShowStart(true);
+  }, []);
+  const handleComplete = useCallback(() => {
+    sceneRef.current?.cancelAnimation();
+    setShowComplete(true);
+  }, []);
+  const handleHistory = useCallback(() => {
+    sceneRef.current?.cancelAnimation();
+    setShowHistory(true);
+  }, []);
+
   return (
     <div className="w-full h-screen bg-slate-950 overflow-hidden relative font-sans select-none flex flex-col md:flex-row">
       {showRegistration && <RegistrationModal onClose={() => { setShowRegistration(false); reloadStatusOps(); }} />}
-      {showStart && <StartModal onClose={confirmed => { setShowStart(false); if (confirmed) setIsOperationActive(true); }} />}
+      {showStart && <StartModal onClose={confirmed => { setShowStart(false); if (confirmed) isOperationActiveRef.current = true; }} />}
       {showComplete && <CompleteModal onClose={() => setShowComplete(false)} onDone={reloadStatusOps} />}
       {showHistory && <HistoryModal onClose={() => setShowHistory(false)} />}
       {selectedOp && <OpDetailModal op={selectedOp} onClose={() => setSelectedOp(null)} />}
@@ -127,43 +191,36 @@ export default function App() {
 
           <div className="relative flex-1 rounded-xl overflow-hidden border-2 border-sky-500/50 shadow-[0_0_0_1px_rgba(14,165,233,0.15),0_0_60px_rgba(14,165,233,0.18),inset_0_0_30px_rgba(14,165,233,0.04)] min-h-0">
 
-            {targetPanels.length > 0 && (
-              <div className="absolute top-3 left-3 right-1/2 z-30 flex flex-col gap-0.5 pointer-events-none">
-                {targetPanels.map(p => {
-                  const info = PANEL_DATA[p.id];
-                  return (
-                    <div key={p.id} className="flex items-center gap-2 bg-red-950/90 backdrop-blur-sm border border-red-800/60 px-2.5 py-1 rounded-md shadow-lg">
-                      <span className="relative flex h-1.5 w-1.5 shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
+            {/* 패널 알람 오버레이: 항상 div 존재 → Canvas의 children index 고정 */}
+            <div className={`absolute top-3 left-3 right-1/2 z-30 flex flex-col gap-0.5 pointer-events-none ${targetPanels.length === 0 ? 'hidden' : ''}`}>
+              {targetPanels.map(p => {
+                const info = PANEL_DATA[p.id];
+                return (
+                  <div key={p.id} className="flex items-center gap-2 bg-red-950/90 backdrop-blur-sm border border-red-800/60 px-2.5 py-1 rounded-md shadow-lg">
+                    <span className="relative flex h-1.5 w-1.5 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
+                    </span>
+                    <span className="text-red-300 font-mono font-bold text-[11px] tracking-wide shrink-0">{info?.unitId ?? String(p.id).padStart(2, '0')}</span>
+                    <span className="w-px h-3 bg-red-800 shrink-0" />
+                    <span className="text-slate-200 text-[11px] truncate flex-1">{info?.name ?? p.description}</span>
+                    {p.status && (
+                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 ${p.status.toUpperCase() === 'ON' ? 'bg-emerald-950 text-emerald-400' : 'bg-red-900 text-red-300'}`}>
+                        {p.status.toUpperCase()}
                       </span>
-                      <span className="text-red-300 font-mono font-bold text-[11px] tracking-wide shrink-0">{info?.unitId ?? String(p.id).padStart(2, '0')}</span>
-                      <span className="w-px h-3 bg-red-800 shrink-0" />
-                      <span className="text-slate-200 text-[11px] truncate flex-1">{info?.name ?? p.description}</span>
-                      {p.status && (
-                        <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 ${p.status.toUpperCase() === 'ON' ? 'bg-emerald-950 text-emerald-400' : 'bg-red-900 text-red-300'}`}>
-                          {p.status.toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-            <Canvas shadows dpr={[1, 2]} className="w-full h-full"
-              style={{ display: 'block', width: '100%', height: '100%', background: '#0a0a0a' }}
-              camera={CANVAS_CAMERA}>
-              <Suspense fallback={LOADING_FALLBACK}>
-                <Scene
-                  targetSubIds={targetSubIds}
-                  clearActivePanels={clearTargetPanels}
-                  onCameraUpdate={setCameraPos}
-                  panels={PANELS}
-                  isOperationActive={isOperationActive}
-                />
-              </Suspense>
-            </Canvas>
+            {/* ThreeDView: 마운트 후 절대 재렌더링 없음 */}
+            <ThreeDView
+              sceneRef={sceneRef}
+              clearActivePanels={clearTargetPanels}
+              onCameraUpdate={setCameraPos}
+              isOperationActiveRef={isOperationActiveRef}
+            />
           </div>
 
           <div className="shrink-0 flex items-center justify-end px-4 py-1.5 rounded-xl border border-sky-900/40 bg-slate-900/60">
@@ -173,8 +230,8 @@ export default function App() {
 
         <Sidebar
           statusOps={statusOps} statusLoading={statusLoading} onSelectOp={setSelectedOp}
-          onRegister={() => setShowRegistration(true)} onStart={() => setShowStart(true)}
-          onComplete={() => setShowComplete(true)} onHistory={() => setShowHistory(true)}
+          onRegister={handleRegister} onStart={handleStart}
+          onComplete={handleComplete} onHistory={handleHistory}
           activeSideBtn={activeSideBtn} setActiveSideBtn={setActiveSideBtn}
         />
       </div>

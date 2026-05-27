@@ -92,33 +92,37 @@ const GLBClone = React.memo(function GLBClone({ baseScene, position, rotation, g
       </mesh>
 
       {/* 기기번호 */}
-      <Text
-        position={[cx, cy + ph * 0.358, fz + 0.006]}
-        fontSize={fontPh * 0.056}
-        color="#08111e"
-        anchorX="center"
-        anchorY="middle"
-        fontWeight="bold"
-        letterSpacing={0.06}
-        textAlign="center"
-        font="/fonts/Pretendard-Bold.woff"
-      >
-        {unitId}
-      </Text>
+      <React.Suspense fallback={null}>
+        <Text
+          position={[cx, cy + ph * 0.358, fz + 0.006]}
+          fontSize={fontPh * 0.056}
+          color="#08111e"
+          anchorX="center"
+          anchorY="middle"
+          fontWeight="bold"
+          letterSpacing={0.06}
+          textAlign="center"
+          font="/fonts/Pretendard-Bold.woff"
+        >
+          {unitId}
+        </Text>
+      </React.Suspense>
 
       {/* 기기명 */}
-      <Text
-        position={[cx, cy + ph * 0.302, fz + 0.006]}
-        fontSize={fontPh * 0.040}
-        color="#243245"
-        anchorX="center"
-        anchorY="middle"
-        maxWidth={pw * 0.65}
-        textAlign="center"
-        font="/fonts/Pretendard-Bold.woff"
-      >
-        {desc}
-      </Text>
+      <React.Suspense fallback={null}>
+        <Text
+          position={[cx, cy + ph * 0.302, fz + 0.006]}
+          fontSize={fontPh * 0.040}
+          color="#243245"
+          anchorX="center"
+          anchorY="middle"
+          maxWidth={pw * 0.65}
+          textAlign="center"
+          font="/fonts/Pretendard-Bold.woff"
+        >
+          {desc}
+        </Text>
+      </React.Suspense>
     </group>
   );
 });

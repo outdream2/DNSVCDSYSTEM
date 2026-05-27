@@ -1,6 +1,8 @@
 import React from 'react';
 import { Operation } from '../../data/types';
 import { TEAM_DATA } from '../../data/staffData';
+import { getOperations } from '../../api/operationApi';
+import { setActivePanels } from '../../api/panelApi';
 
 function StartModal({ onClose }: { onClose: (confirmed?: boolean) => void }) {
   const [team, setTeam] = React.useState('');
@@ -16,10 +18,7 @@ function StartModal({ onClose }: { onClose: (confirmed?: boolean) => void }) {
 
   // 조작등록에서 등록된 차단기 불러오기
   React.useEffect(() => {
-    fetch('/api/operations')
-      .then(r => r.json())
-      .then(d => setRegOps((d.operations ?? []).filter((o: Operation) => o.status === '진행중')))
-      .catch(() => { });
+    getOperations({ status: '진행중' }).then(setRegOps).catch(() => {});
   }, []);
 
   React.useEffect(() => {
@@ -39,11 +38,7 @@ function StartModal({ onClose }: { onClose: (confirmed?: boolean) => void }) {
           const op = regOps.find(o => o.id === id);
           return op ? { id: op.panelId, status: 'ON', description: op.unitId } : null;
         }).filter(Boolean);
-        fetch('/api/active-panels', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(panels),
-        }).catch(() => { });
+        setActivePanels(panels as any).catch(() => {});
       }
     }, 1400);
   };

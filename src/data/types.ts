@@ -1,8 +1,7 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+// 서버·클라이언트 공유 타입 — shared/types.ts가 단일 정의 소스
+export type { ActivePanel, Operation, ApiResponse, OperationsResponse, PanelsResponse } from '../../shared/types';
 
+// 프론트엔드 전용 타입
 export interface PanelInfo {
   glbKey: string;
   unitId: string;
@@ -22,24 +21,4 @@ export interface Placement {
   desc: string;
   unitId: string;
   doubleHeight?: boolean;
-}
-
-export interface ActivePanel {
-  id: number;
-  status: string;
-  description: string;
-}
-
-export interface Operation {
-  id: number;
-  panelId: number;
-  unitId: string;
-  panelName: string;
-  opType: 'KEY CLOSED' | 'KEY OPEN' | 'KEY ALERT';
-  operator: string;
-  department: string;
-  purpose: string;
-  status: '완료' | '진행중' | '실패';
-  notes: string;
-  operatedAt: string;
 }

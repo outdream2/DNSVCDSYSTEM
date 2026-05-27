@@ -1,5 +1,6 @@
 import { Application } from 'express';
 import { ActivePanel, getAll, setAll, clear } from '../db/panelRepo';
+import { notifyPanelChange } from './events';
 
 export function setupPanelRoutes(app: Application): void {
   app.get('/api/active-panels', async (req, res) => {
@@ -26,12 +27,14 @@ export function setupPanelRoutes(app: Application): void {
     }
 
     await setAll(newPanels);
+    notifyPanelChange();
     console.log('Updated active panels:', newPanels);
     res.json({ status: 'success', panels: await getAll() });
   });
 
   app.delete('/api/active-panels', async (req, res) => {
     await clear();
+    notifyPanelChange();
     res.json({ status: 'success', panels: [] });
   });
 }

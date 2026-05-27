@@ -1,6 +1,7 @@
 import React from 'react';
 import { Operation } from '../../data/types';
 import { TEAM_DATA } from '../../data/staffData';
+import { getOperations, completeOperations } from '../../api/operationApi';
 
 function CompleteModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [ops, setOps] = React.useState<Operation[]>([]);
@@ -17,9 +18,8 @@ function CompleteModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
   const cSelectCls = "w-full bg-slate-800 border border-slate-600 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors";
 
   React.useEffect(() => {
-    fetch('/api/operations?status=진행중')
-      .then(r => r.json())
-      .then(d => { setOps(d.operations ?? []); setLoading(false); })
+    getOperations({ status: '진행중' })
+      .then(ops => { setOps(ops); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 
@@ -30,12 +30,7 @@ function CompleteModal({ onClose, onDone }: { onClose: () => void; onDone: () =>
     if (checkedIds.length === 0) return;
     setSubmitting(true);
     try {
-      const res = await fetch('/api/operations/complete', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: checkedIds }),
-      });
-      if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
+      await completeOperations(checkedIds);
       setDone(true);
       setTimeout(() => { onDone(); onClose(); }, 1200);
     } catch {

@@ -11,15 +11,9 @@ const SIDE_BUTTONS = [
 ];
 
 function Sidebar({
-  statusOps,
-  statusLoading,
-  onSelectOp,
-  onRegister,
-  onStart,
-  onComplete,
-  onHistory,
-  activeSideBtn,
-  setActiveSideBtn,
+  statusOps, statusLoading, onSelectOp,
+  onRegister, onStart, onComplete, onHistory,
+  activeSideBtn, setActiveSideBtn,
 }: {
   statusOps: Operation[];
   statusLoading: boolean;
@@ -32,36 +26,35 @@ function Sidebar({
   setActiveSideBtn: (label: string) => void;
 }) {
   return (
-    <div className="w-72 h-full flex flex-col bg-[#111827] border-l border-slate-800/80 shrink-0 overflow-hidden">
+    <div className="w-72 h-full flex flex-col bg-white border-l border-gray-200 shrink-0 overflow-hidden">
 
       {/* 통신정보 섹션 */}
       <div className="px-3 pt-3 pb-2 shrink-0">
-        <div className="rounded-xl bg-slate-900/70 border border-slate-700/60 overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-700/50 bg-slate-800/40">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><circle cx="12" cy="20" r="1" /></svg>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">통신정보</span>
+        <div className="rounded-xl bg-gray-50 border border-gray-200 overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-100 bg-white">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><circle cx="12" cy="20" r="1" /></svg>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">통신정보</span>
           </div>
-          <div className="flex flex-col divide-y divide-slate-700/40">
+          <div className="flex flex-col divide-y divide-gray-100">
             <div className="flex items-center gap-2 px-3 py-2">
               <div className="relative shrink-0">
                 <div className="w-2 h-2 rounded-full bg-emerald-400" />
                 <div className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-50" />
               </div>
-              <span className="text-[11px] text-slate-300 font-medium">GENi 연동</span>
-              <span className="ml-auto text-[9px] font-bold text-emerald-400">ON</span>
+              <span className="text-[11px] text-gray-600 font-medium">GENi 연동</span>
+              <span className="ml-auto text-[9px] font-bold text-emerald-600">ON</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-2">
               <div className="relative shrink-0">
-                <div className="w-2 h-2 rounded-full bg-sky-400" />
-                <div className="absolute inset-0 rounded-full bg-sky-400 animate-ping opacity-50" />
+                <div className="w-2 h-2 rounded-full bg-blue-400" />
+                <div className="absolute inset-0 rounded-full bg-blue-400 animate-ping opacity-50" />
               </div>
-              <span className="text-[11px] text-slate-300 font-medium">키보관함 연동</span>
-              <span className="ml-auto text-[9px] font-bold text-sky-400">ON</span>
+              <span className="text-[11px] text-gray-600 font-medium">키보관함 연동</span>
+              <span className="ml-auto text-[9px] font-bold text-blue-600">ON</span>
             </div>
           </div>
         </div>
       </div>
-
 
       {/* 상단 버튼: 조작 등록 + 조작등록내역 */}
       <div className="flex flex-col gap-2 pl-3 pr-6 pb-2 shrink-0">
@@ -70,15 +63,16 @@ function Sidebar({
           return (
             <button key={label}
               onClick={() => { setActiveSideBtn(label); if (action === 'registration') onRegister(); }}
-              className={`w-full rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 ${isActive
-                ? 'bg-[#6B5EF8] hover:bg-[#7B6EFF] shadow-md shadow-violet-900/40 py-4'
-                : action === 'status'
-                  ? 'bg-[#1e2a3e] hover:bg-[#253348] border-2 border-sky-500/70 hover:border-sky-400 py-3.5'
-                  : 'bg-[#1e2a3e] hover:bg-[#253348] border border-slate-700/50 hover:border-slate-600 py-3.5'
-                }`}
+              className={`w-full rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 border ${
+                isActive
+                  ? 'bg-blue-600 hover:bg-blue-700 border-blue-600 shadow-md shadow-blue-100 py-4'
+                  : action === 'status'
+                    ? 'bg-white hover:bg-blue-50 border-blue-400 py-3.5'
+                    : 'bg-white hover:bg-gray-50 border-gray-200 py-3.5'
+              }`}
             >
-              <span className={`text-[13px] font-bold tracking-tight leading-none ${isActive ? 'text-white' : 'text-slate-200'}`}>{label}</span>
-              <span className={`text-[9px] font-semibold tracking-[0.2em] uppercase leading-none ${isActive ? 'text-violet-200' : 'text-slate-500'}`}>{sub}</span>
+              <span className={`text-[13px] font-bold tracking-tight leading-none ${isActive ? 'text-white' : 'text-gray-700'}`}>{label}</span>
+              <span className={`text-[9px] font-semibold tracking-[0.2em] uppercase leading-none ${isActive ? 'text-blue-100' : 'text-gray-400'}`}>{sub}</span>
             </button>
           );
         })}
@@ -99,13 +93,14 @@ function Sidebar({
                 if (action === 'complete') onComplete();
                 if (action === 'history') onHistory();
               }}
-              className={`w-full rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 ${isActive
-                ? 'bg-[#6B5EF8] hover:bg-[#7B6EFF] shadow-md shadow-violet-900/40 py-4'
-                : 'bg-[#1e2a3e] hover:bg-[#253348] border border-slate-700/50 hover:border-slate-600 py-3.5'
-                }`}
+              className={`w-full rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all duration-200 border ${
+                isActive
+                  ? 'bg-blue-600 hover:bg-blue-700 border-blue-600 shadow-md shadow-blue-100 py-4'
+                  : 'bg-white hover:bg-gray-50 border-gray-200 py-3.5'
+              }`}
             >
-              <span className={`text-[13px] font-bold tracking-tight leading-none ${isActive ? 'text-white' : 'text-slate-200'}`}>{label}</span>
-              <span className={`text-[9px] font-semibold tracking-[0.2em] uppercase leading-none ${isActive ? 'text-violet-200' : 'text-slate-500'}`}>{sub}</span>
+              <span className={`text-[13px] font-bold tracking-tight leading-none ${isActive ? 'text-white' : 'text-gray-700'}`}>{label}</span>
+              <span className={`text-[9px] font-semibold tracking-[0.2em] uppercase leading-none ${isActive ? 'text-blue-100' : 'text-gray-400'}`}>{sub}</span>
             </button>
           );
         })}

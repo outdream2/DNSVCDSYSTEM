@@ -1,7 +1,7 @@
 import React from 'react';
 import { PANEL_DATA } from '../../data/panelData';
-import { Operation } from '../../data/types';
 import { DEPARTMENTS, REASONS } from '../../data/staffData';
+import { createOperation } from '../../api/operationApi';
 
 export function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -42,18 +42,13 @@ function RegistrationModal({ onClose }: { onClose: () => void }) {
     if (!isValid) return;
     setSubmitting(true);
     try {
-      await Promise.all(selectedPanelIds.map(async pid => {
+      await Promise.all(selectedPanelIds.map(pid => {
         const info = PANEL_DATA[pid];
-        const res = await fetch('/api/operations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            panelId: pid, unitId: info?.unitId ?? '', panelName: info?.name ?? '',
-            opType: 'KEY CLOSED', operator: form.requestDept, department: form.requestDept,
-            purpose: form.reason, notes: '',
-          }),
+        return createOperation({
+          panelId: pid, unitId: info?.unitId ?? '', panelName: info?.name ?? '',
+          opType: 'KEY CLOSED', operator: form.requestDept, department: form.requestDept,
+          purpose: form.reason, notes: '',
         });
-        if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
       }));
       setSuccess(true);
       setTimeout(onClose, 1400);
