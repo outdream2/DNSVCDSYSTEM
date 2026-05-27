@@ -320,10 +320,11 @@ const SceneComponent = React.forwardRef<SceneHandle, {
         <PathArrow key={idx} index={idx} position={arrow.position} target={arrow.target} />
       ))}
 
-      <GLBGrid blinkingIdsRef={blinkingSetRef} />
-      <StaticEnvironment />
+      {/* key 고정: pathArrows 삽입으로 인한 position shift → 리마운트 방지 */}
+      <GLBGrid key="glb-grid" blinkingIdsRef={blinkingSetRef} />
+      <StaticEnvironment key="static-env" />
 
-      <React.Suspense fallback={null}>
+      <React.Suspense key="text-suspense" fallback={null}>
         <Float speed={1} rotationIntensity={0.2} floatIntensity={0.2}>
           <Text position={[0, 4.5, -8]} fontSize={0.6} color="#10b981" maxWidth={10} textAlign="center">
             ELECTRICAL PANEL MONITORING
