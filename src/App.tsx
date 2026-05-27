@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, Suspense, useCallback, useRef } fr
 import { createRoot } from 'react-dom/client';
 import { Canvas } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
+import { LayoutDashboard, Box, AlertCircle, History, Settings, Headphones } from 'lucide-react';
 
 import { ActivePanel, Operation } from './data/types';
 import { PANEL_DATA } from './data/panelData';
@@ -16,7 +17,7 @@ import CompleteModal from './design/modals/CompleteModal';
 import OpDetailModal from './design/modals/OpDetailModal';
 import HistoryModal from './design/modals/HistoryModal';
 
-// ─── 모듈 레벨 상수: 렌더링마다 새 객체 생성 방지 ───────────────────────────
+// ─── 모듈 레벨 상수 ──────────────────────────────────────────────────────────
 const CANVAS_CAMERA = { position: [-6, 4.0, 0] as [number, number, number], fov: 30, near: 0.1, far: 1000 };
 const CANVAS_DPR: [number, number] = [1, 2];
 const CANVAS_STYLE: React.CSSProperties = { display: 'block', width: '100%', height: '100%', background: '#0a0a0a' };
@@ -64,8 +65,6 @@ const LOADING_FALLBACK = (
   </Html>
 );
 
-// ─── 완전 격리된 3D Canvas 래퍼 ──────────────────────────────────────────────
-// 별도 React 루트에서 마운트 → App 리렌더링이 Canvas에 절대 전파 불가
 const ThreeDView = React.memo(function ThreeDView({
   sceneRef,
   clearActivePanels,
@@ -117,14 +116,12 @@ export default function App() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const lastFetchedRef = useRef('[]');
 
-  // clearTargetPanels을 먼저 정의 — 격리 루트 effect가 참조하기 때문
   const clearTargetPanels = useCallback(async () => {
     try { await fetch('/api/active-panels', { method: 'DELETE' }); } catch {}
     lastFetchedRef.current = '[]';
     setTargetPanels([]);
   }, []);
 
-  // 별도 React 루트에 Canvas 마운트 — App 리렌더링이 3D 파트에 절대 전파되지 않음
   useEffect(() => {
     const el = canvasContainerRef.current;
     if (!el) return;
@@ -138,8 +135,6 @@ export default function App() {
       />
     );
     return () => { isolatedRoot.unmount(); };
-  // 의존성 없음 — 마운트 시 한 번만 실행, 모든 prop이 안정적 ref/callback
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const reloadStatusOps = useCallback(() => {
@@ -193,63 +188,114 @@ export default function App() {
   }, []);
 
   return (
-    <div className="w-full h-screen bg-slate-950 overflow-hidden relative font-sans select-none flex flex-col md:flex-row">
-      {showRegistration && <RegistrationModal onClose={() => { setShowRegistration(false); reloadStatusOps(); }} />}
-      {showStart && <StartModal onClose={confirmed => { setShowStart(false); if (confirmed) isOperationActiveRef.current = true; }} />}
-      {showComplete && <CompleteModal onClose={() => setShowComplete(false)} onDone={reloadStatusOps} />}
-      {showHistory && <HistoryModal onClose={() => setShowHistory(false)} />}
-      {selectedOp && <OpDetailModal op={selectedOp} onClose={() => setSelectedOp(null)} />}
-
-      {/* 2D 도면 */}
-      <div className="w-full md:w-[30%] h-[40%] md:h-full border-b md:border-b-0 md:border-r border-slate-800 z-30">
-        <FloorPlan cameraPos={cameraPos} panels={PANELS} targetSubIds={targetSubIds} targetPanels={targetPanels} />
-      </div>
-
-      {/* 3D + 사이드바 */}
-      <div className="w-full md:w-[70%] h-[60%] md:h-full flex flex-row pr-6">
-        <div className="relative flex-1 h-full bg-[#080c14] flex flex-col p-2.5 gap-2">
-          <Header targetPanels={targetPanels} statusOps={statusOps} />
-
-          <div className="relative flex-1 rounded-xl overflow-hidden border-2 border-sky-500/50 shadow-[0_0_0_1px_rgba(14,165,233,0.15),0_0_60px_rgba(14,165,233,0.18),inset_0_0_30px_rgba(14,165,233,0.04)] min-h-0">
-
-            {/* 패널 알람 오버레이 */}
-            <div className={`absolute top-3 left-3 right-1/2 z-30 flex flex-col gap-0.5 pointer-events-none ${targetPanels.length === 0 ? 'hidden' : ''}`}>
-              {targetPanels.map(p => {
-                const info = PANEL_DATA[p.id];
-                return (
-                  <div key={p.id} className="flex items-center gap-2 bg-red-950/90 backdrop-blur-sm border border-red-800/60 px-2.5 py-1 rounded-md shadow-lg">
-                    <span className="relative flex h-1.5 w-1.5 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
-                    </span>
-                    <span className="text-red-300 font-mono font-bold text-[11px] tracking-wide shrink-0">{info?.unitId ?? String(p.id).padStart(2, '0')}</span>
-                    <span className="w-px h-3 bg-red-800 shrink-0" />
-                    <span className="text-slate-200 text-[11px] truncate flex-1">{info?.name ?? p.description}</span>
-                    {p.status && (
-                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 ${p.status.toUpperCase() === 'ON' ? 'bg-emerald-950 text-emerald-400' : 'bg-red-900 text-red-300'}`}>
-                        {p.status.toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* 별도 React 루트 컨테이너 — App 리렌더링과 완전 격리 */}
-            <div ref={canvasContainerRef} className="absolute inset-0" />
-          </div>
-
-          <div className="shrink-0 flex items-center justify-end px-4 py-1.5 rounded-xl border border-sky-900/40 bg-slate-900/60">
-            <span className="text-[10px] font-bold tracking-[0.12em] text-slate-500">영동 1호기 고압차단기</span>
-          </div>
+    <div className="w-full h-screen bg-white overflow-hidden relative font-sans select-none flex flex-row">
+      
+      {/* ─── 왼쪽 메인 사이드바 (mainoutlet.jpg 스타일) ─── */}
+      <div className="w-64 h-full bg-white border-r border-gray-100 flex flex-col z-40">
+        {/* 로고 영역 */}
+        <div className="px-6 py-10">
+          <img src="/logo.png" alt="KOEN" className="h-10 object-contain" />
         </div>
 
-        <Sidebar
-          statusOps={statusOps} statusLoading={statusLoading} onSelectOp={setSelectedOp}
-          onRegister={handleRegister} onStart={handleStart}
-          onComplete={handleComplete} onHistory={handleHistory}
-          activeSideBtn={activeSideBtn} setActiveSideBtn={setActiveSideBtn}
-        />
+        {/* 메인 메뉴 */}
+        <nav className="flex-1 px-4 flex flex-col gap-2">
+          {[
+            { id: 'dashboard', label: 'DASHBOARD', icon: LayoutDashboard, active: true },
+            { id: 'overview', label: 'UNIT OVERVIEW', icon: Box },
+            { id: 'alarm', label: 'ALARM & EVENT', icon: AlertCircle },
+            { id: 'history', label: 'HISTORY', icon: History },
+            { id: 'settings', label: 'SETTINGS', icon: Settings },
+          ].map((item) => (
+            <button
+              key={item.id}
+              className={`w-full flex items-center gap-4 px-5 py-4 rounded-xl font-black text-xs tracking-widest transition-all ${
+                item.active 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' 
+                : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <item.icon size={20} strokeWidth={item.active ? 2.5 : 2} />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* 서포트 및 푸터 */}
+        <div className="px-6 py-8 flex flex-col gap-8">
+          <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col gap-2">
+            <div className="flex items-center gap-2 text-blue-600">
+              <Headphones size={18} />
+              <span className="text-[11px] font-black tracking-tighter uppercase">24/7 Support</span>
+            </div>
+            <p className="text-[11px] font-bold text-slate-400 leading-tight">Control Center<br/>055-123-4567</p>
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className="text-[10px] font-bold text-slate-300">© 2026 KOEN</p>
+            <p className="text-[10px] font-medium text-slate-300">All rights reserved.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── 메인 컨텐츠 영역 ─── */}
+      <div className="flex-1 h-full flex flex-col bg-slate-50">
+        
+        {showRegistration && <RegistrationModal onClose={() => { setShowRegistration(false); reloadStatusOps(); }} />}
+        {showStart && <StartModal onClose={confirmed => { setShowStart(false); if (confirmed) isOperationActiveRef.current = true; }} />}
+        {showComplete && <CompleteModal onClose={() => setShowComplete(false)} onDone={reloadStatusOps} />}
+        {showHistory && <HistoryModal onClose={() => setShowHistory(false)} />}
+        {selectedOp && <OpDetailModal op={selectedOp} onClose={() => setSelectedOp(null)} />}
+
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          {/* 2D 도면 */}
+          <div className="w-full md:w-[32%] h-[40%] md:h-full border-b md:border-b-0 md:border-r border-gray-100 z-30">
+            <FloorPlan cameraPos={cameraPos} panels={PANELS} targetSubIds={targetSubIds} targetPanels={targetPanels} />
+          </div>
+
+          {/* 3D + 오른쪽 사이드바 */}
+          <div className="w-full md:w-[68%] h-[60%] md:h-full flex flex-row pr-0">
+            <div className="relative flex-1 h-full bg-slate-50 flex flex-col p-4 gap-4">
+              <Header targetPanels={targetPanels} statusOps={statusOps} />
+
+              <div className="relative flex-1 rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-sm min-h-0">
+                {/* 패널 알람 오버레이 */}
+                <div className={`absolute top-4 left-4 right-1/2 z-30 flex flex-col gap-1 pointer-events-none ${targetPanels.length === 0 ? 'hidden' : ''}`}>
+                  {targetPanels.map(p => {
+                    const info = PANEL_DATA[p.id];
+                    return (
+                      <div key={p.id} className="flex items-center gap-3 bg-white/95 backdrop-blur shadow-md border border-red-100 px-3 py-2 rounded-xl">
+                        <span className="relative flex h-2 w-2 shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                        </span>
+                        <span className="text-red-600 font-mono font-black text-xs tracking-wide shrink-0">{info?.unitId ?? String(p.id).padStart(2, '0')}</span>
+                        <div className="w-px h-3 bg-gray-200 shrink-0" />
+                        <span className="text-slate-700 text-xs font-bold truncate flex-1">{info?.name ?? p.description}</span>
+                        {p.status && (
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg shrink-0 ${p.status.toUpperCase() === 'ON' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                            {p.status.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* 3D View 컨테이너 */}
+                <div ref={canvasContainerRef} className="absolute inset-0" />
+              </div>
+
+              <div className="shrink-0 flex items-center justify-end px-5 py-2.5 rounded-2xl border border-gray-100 bg-white shadow-sm">
+                <span className="text-[11px] font-black tracking-[0.2em] text-slate-300 uppercase">Yeongdong Power Plant Unit 1 · VCD Monitoring System</span>
+              </div>
+            </div>
+
+            <Sidebar
+              statusOps={statusOps} statusLoading={statusLoading} onSelectOp={setSelectedOp}
+              onRegister={handleRegister} onStart={handleStart}
+              onComplete={handleComplete} onHistory={handleHistory}
+              activeSideBtn={activeSideBtn} setActiveSideBtn={setActiveSideBtn}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
