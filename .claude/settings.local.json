@@ -27,7 +27,8 @@
       "mcp__ide__getDiagnostics",
       "Bash(taskkill *)",
       "PowerShell(Stop-Process *)",
-      "Bash(npx tsx *)"
+      "Bash(npx tsx *)",
+      "Bash(npx vite *)"
     ]
   }
 }

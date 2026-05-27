@@ -13,163 +13,142 @@ function FloorPlan({
   targetSubIds: number[],
   targetPanels: ActivePanel[],
 }) {
-  // Use a targeted viewbox designed to fill the screen with just the KOEN wall and the panels
+  // 뷰박스 크기 최적화 (높이 4000 유지)
   const width = 2400;
-  const height = 3600;
+  const height = 4000;
 
-  const NORMAL_SCALE = 132;
+  const NORMAL_SCALE = 140;
 
   const mapX2D = (z: number) => {
-    return 1200 + z * 118;
+    // 3D aisle is around z=0. Map it to horizontal center 1200.
+    return 1200 + z * 120;
   };
 
   const mapY2D = (x: number) => {
-    // Top-most wall in 3D is X=35. Map it near 0 to shift the whole layout UPwards
+    // 3D X coordinates: room is roughly from -24 to 35. 
+    // Shift EVERYTHING up by reducing the top offset (60 -> -150)
     if (x >= 11) {
-      return 10 + (35 - x) * NORMAL_SCALE;
+      return -150 + (35 - x) * NORMAL_SCALE;
     }
-    // For anything below x=11 (where the camera drops back to -14), squash the coordinate slightly
-    const yAt11 = 10 + (35 - 11) * NORMAL_SCALE;
-    return yAt11 + (11 - x) * 20;
+    const yAt11 = -150 + (35 - 11) * NORMAL_SCALE;
+    return yAt11 + (11 - x) * 40;
   };
 
   return (
-    <div className="w-full h-full bg-white flex flex-col items-center p-2 pt-3 relative overflow-hidden border-l border-gray-200">
-      {/* Header Info */}
-      <div className="w-full flex items-center justify-center mb-3 z-30 relative">
-        <div className="w-56 mt-4">
-          <div className="bg-white rounded-xl w-full overflow-hidden shadow-lg">
-            <img src="/logo.png" alt="KOEN" className="w-full h-16 object-cover" />
-          </div>
+    <div className="w-full h-full bg-slate-50 flex flex-col items-center p-4 relative overflow-hidden border-l border-gray-200">
+      {/* 로고 영역 (이미지 상단 참고) */}
+      <div className="w-full flex items-center justify-between mb-4 z-30 relative px-2">
+        <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3">
+          <div className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-none">Floor Plan Overview</span>
         </div>
       </div>
 
-      <div className="relative group w-full flex-1 flex justify-center items-center overflow-hidden">
+      <div className="relative group w-full flex-1 flex justify-center items-center overflow-hidden rounded-2xl bg-white border border-gray-200 shadow-sm">
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="w-full h-full bg-gray-50 rounded-xl border border-gray-200 shadow-inner"
+          className="w-full h-full"
           preserveAspectRatio="xMidYMid meet"
         >
-          {/* Technical Grid - Subtle */}
           <defs>
-            <pattern id="grid-at-glance" width={100} height={100} patternUnits="userSpaceOnUse">
-              <path d={`M 100 0 L 0 0 0 100`} fill="none" stroke="rgba(37, 99, 235, 0.07)" strokeWidth="1" />
-              <circle cx="50" cy="50" r="1.5" fill="rgba(37, 99, 235, 0.1)" />
+            <pattern id="grid-pattern" width={120} height={120} patternUnits="userSpaceOnUse">
+              <path d="M 120 0 L 0 0 0 120" fill="none" stroke="#f1f5f9" strokeWidth="2" />
             </pattern>
-            <radialGradient id="userGlow-at-glance" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
-            </radialGradient>
-            <linearGradient id="panel-gradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#f8fafc" />
-              <stop offset="100%" stopColor="#e2e8f0" />
-            </linearGradient>
-            <linearGradient id="selected-gradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ef4444" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#b91c1c" stopOpacity="0.5" />
-            </linearGradient>
-            <filter id="glow-eff" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="8" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            
+            <filter id="card-shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feOffset dx="0" dy="3" result="offsetBlur" />
+              <feFlood floodColor="#64748b" floodOpacity="0.08" result="offsetColor" />
+              <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="shadow" />
+              <feComposite in="SourceGraphic" in2="shadow" operator="over" />
+            </filter>
+
+            {/* 선택 시 붉은색 강렬한 발광 효과 */}
+            <filter id="active-glow-red" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="15" result="blur" />
+              <feFlood floodColor="#ef4444" floodOpacity="0.6" result="color" />
+              <feComposite in="color" in2="blur" operator="in" result="glow" />
+              <feComposite in="SourceGraphic" in2="glow" operator="over" />
             </filter>
           </defs>
-          <rect width="100%" height="100%" fill="url(#grid-at-glance)" />
 
-          {/* Environment Walls (Schematic) */}
-          {/* Top block removed to maximize space for panels */}
+          <rect width="100%" height="100%" fill="url(#grid-pattern)" />
 
-          {/* Panels */}
           {panels.map((p) => {
             const isSelectedUpper = targetSubIds.includes(p.upperId);
             const isSelectedLower = targetSubIds.includes(p.lowerId);
             const isSelected = isSelectedUpper || isSelectedLower;
 
-            // Scaled based on physical dimensions allowing maximum vertical height
-            const panelWidth = 480;
+            const panelWidth = 440;
             const panelHeight = 250;
 
             const xPos = mapX2D(p.position[2]) - panelWidth / 2;
             const yPos = mapY2D(p.position[0]) - panelHeight / 2;
 
             return (
-              <g key={p.id}>
-                {isSelected && (
-                  <rect
-                    x={xPos - 12}
-                    y={yPos - 12}
-                    width={panelWidth + 24}
-                    height={panelHeight + 24}
-                    fill="none"
-                    stroke="#ef4444"
-                    strokeWidth="6"
-                    rx="8"
-                    filter="url(#glow-eff)"
-                    className="animate-pulse"
-                  />
-                )}
+              <g key={p.id} filter={isSelected ? "url(#active-glow-red)" : "url(#card-shadow)"}>
                 <rect
                   x={xPos}
                   y={yPos}
                   width={panelWidth}
                   height={panelHeight}
-                  fill={isSelected ? "url(#selected-gradient)" : "url(#panel-gradient)"}
-                  stroke={isSelected ? "#ef4444" : "#2563eb"}
-                  strokeWidth={isSelected ? "4" : "3"}
-                  rx="6"
-                  className="transition-all duration-300"
-                />
+                  fill="white"
+                  stroke={isSelected ? "#ef4444" : "#94a3b8"}
+                  strokeWidth={isSelected ? "6" : "3"}
+                  rx="14"
+                  className={isSelected ? "animate-pulse" : "transition-all duration-300"}
+                >
+                  {isSelected && (
+                    <animate
+                      attributeName="stroke-opacity"
+                      values="1;0.4;1"
+                      dur="1.5s"
+                      repeatCount="indefinite"
+                    />
+                  )}
+                </rect>
 
-                {/* Visual Top Highlight Edge for depth */}
-                <rect
-                  x={xPos + 2}
-                  y={yPos + 2}
-                  width={panelWidth - 4}
-                  height={panelHeight * 0.15}
-                  fill="rgba(255,255,255,0.06)"
-                  rx="4"
-                  className="pointer-events-none"
-                />
+                <line x1={xPos + 20} y1={yPos + panelHeight/2} x2={xPos + panelWidth - 20} y2={yPos + panelHeight/2} stroke="#f1f5f9" strokeWidth="2" />
 
-                {/* 상단: upperId + unitId + name */}
-                <text x={xPos + 18} y={yPos + 54} fontSize="54" fill={isSelectedUpper ? "#dc2626" : "#1e40af"} textAnchor="start" alignmentBaseline="middle" className="font-mono pointer-events-none select-none">
-                  {String(p.upperId).padStart(2, '0')}
-                </text>
-                <text x={xPos + 112} y={yPos + 54} fontSize="52" fill={isSelectedUpper ? "#dc2626" : "#2563eb"} textAnchor="start" alignmentBaseline="middle" className="font-mono pointer-events-none select-none">
-                  {PANEL_DATA[p.upperId]?.unitId ?? ''}
-                </text>
-                <text x={xPos + 18} y={yPos + 106} fontSize="42" fill={isSelectedUpper ? "#ef4444" : "#64748b"} textAnchor="start" alignmentBaseline="middle" className="pointer-events-none select-none">
-                  {(PANEL_DATA[p.upperId]?.name ?? '').slice(0, 28)}
-                </text>
+                <g>
+                  <text x={xPos + 25} y={yPos + 65} fontSize="46" fontWeight="900" fill={isSelectedUpper ? "#ef4444" : "#2563eb"} textAnchor="start" className="font-mono">
+                    {p.upperId}
+                  </text>
+                  <text x={xPos + 95} y={yPos + 65} fontSize="38" fontWeight="800" fill="#0f172a" textAnchor="start" className="font-sans tracking-tight">
+                    {PANEL_DATA[p.upperId]?.unitId ?? ''}
+                  </text>
+                  <text x={xPos + 95} y={yPos + 102} fontSize="28" fontWeight="600" fill="#94a3b8" textAnchor="start" className="font-sans">
+                    {(PANEL_DATA[p.upperId]?.name ?? '').slice(0, 20)}
+                  </text>
+                </g>
 
-                {/* 하단: lowerId + unitId + name */}
                 {p.upperId !== p.lowerId && (
-                  <>
-                    <text x={xPos + 18} y={yPos + 158} fontSize="54" fill={isSelectedLower ? "#dc2626" : "#1e40af"} textAnchor="start" alignmentBaseline="middle" className="font-mono pointer-events-none select-none">
-                      {String(p.lowerId).padStart(2, '0')}
+                  <g>
+                    <text x={xPos + 25} y={yPos + 190} fontSize="46" fontWeight="900" fill={isSelectedLower ? "#ef4444" : "#2563eb"} textAnchor="start" className="font-mono">
+                      {p.lowerId}
                     </text>
-                    <text x={xPos + 112} y={yPos + 158} fontSize="52" fill={isSelectedLower ? "#dc2626" : "#2563eb"} textAnchor="start" alignmentBaseline="middle" className="font-mono pointer-events-none select-none">
+                    <text x={xPos + 95} y={yPos + 190} fontSize="38" fontWeight="800" fill="#0f172a" textAnchor="start" className="font-sans tracking-tight">
                       {PANEL_DATA[p.lowerId]?.unitId ?? ''}
                     </text>
-                    <text x={xPos + 18} y={yPos + 210} fontSize="42" fill={isSelectedLower ? "#ef4444" : "#64748b"} textAnchor="start" alignmentBaseline="middle" className="pointer-events-none select-none">
-                      {(PANEL_DATA[p.lowerId]?.name ?? '').slice(0, 28)}
+                    <text x={xPos + 95} y={yPos + 227} fontSize="28" fontWeight="600" fill="#94a3b8" textAnchor="start" className="font-sans">
+                      {(PANEL_DATA[p.lowerId]?.name ?? '').slice(0, 20)}
                     </text>
-                  </>
+                  </g>
                 )}
               </g>
             );
           })}
 
-          {/* Camera Indicator (User Position) - Enhanced Red Dot */}
-          <g transform={`translate(${mapX2D(0)}, ${mapY2D(cameraPos.x)})`}>
-            {/* The glow is larger to fit the massive scale */}
-            <circle r="160" fill="url(#userGlow-at-glance)" />
-            {/* Main Red Dot (Only position, no gaze) */}
-            <circle r="36" fill="#ef4444" stroke="#fff" strokeWidth="8" className="animate-pulse shadow-lg" />
-            <circle r="14" fill="#fff" opacity="0.9" />
+          {/* 카메라 표시 (깔끔한 레드 닷) */}
+          <g transform={`translate(${mapX2D(cameraPos.z)}, ${mapY2D(cameraPos.x)})`}>
+            {/* 은은한 광채 */}
+            <circle r="120" fill="#ef4444" fillOpacity="0.15" />
+            <circle r="60" fill="#ef4444" fillOpacity="0.25" />
+            {/* 메인 도트 */}
+            <circle r="30" fill="#ef4444" stroke="white" strokeWidth="10" className="animate-pulse shadow-xl" />
           </g>
         </svg>
       </div>
-
     </div>
   );
 }
