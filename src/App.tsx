@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, Suspense, useCallback, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
 import { Canvas } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 
@@ -64,7 +65,7 @@ const LOADING_FALLBACK = (
 );
 
 // ─── 완전 격리된 3D Canvas 래퍼 ──────────────────────────────────────────────
-// 마운트 후 절대 재렌더링 없음 → 모든 prop이 안정적인 ref/callback
+// 별도 React 루트에서 마운트 → App 리렌더링이 Canvas에 절대 전파 불가
 const ThreeDView = React.memo(function ThreeDView({
   sceneRef,
   clearActivePanels,
@@ -107,12 +108,39 @@ export default function App() {
   const [showStart, setShowStart] = useState(false);
   const [showComplete, setShowComplete] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const isOperationActiveRef = useRef(false);
-  const sceneRef = useRef<SceneHandle>(null);
   const [statusOps, setStatusOps] = useState<Operation[]>([]);
   const [statusLoading, setStatusLoading] = useState(true);
   const [selectedOp, setSelectedOp] = useState<Operation | null>(null);
+
+  const isOperationActiveRef = useRef(false);
+  const sceneRef = useRef<SceneHandle>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const lastFetchedRef = useRef('[]');
+
+  // clearTargetPanels을 먼저 정의 — 격리 루트 effect가 참조하기 때문
+  const clearTargetPanels = useCallback(async () => {
+    try { await fetch('/api/active-panels', { method: 'DELETE' }); } catch {}
+    lastFetchedRef.current = '[]';
+    setTargetPanels([]);
+  }, []);
+
+  // 별도 React 루트에 Canvas 마운트 — App 리렌더링이 3D 파트에 절대 전파되지 않음
+  useEffect(() => {
+    const el = canvasContainerRef.current;
+    if (!el) return;
+    const isolatedRoot = createRoot(el);
+    isolatedRoot.render(
+      <ThreeDView
+        sceneRef={sceneRef}
+        clearActivePanels={clearTargetPanels}
+        onCameraUpdate={setCameraPos}
+        isOperationActiveRef={isOperationActiveRef}
+      />
+    );
+    return () => { isolatedRoot.unmount(); };
+  // 의존성 없음 — 마운트 시 한 번만 실행, 모든 prop이 안정적 ref/callback
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const reloadStatusOps = useCallback(() => {
     fetch('/api/operations?status=진행중').then(r => r.json())
@@ -145,15 +173,8 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  const targetSubIds = useMemo(() => targetPanels.map(p => p.id), [targetPanels]); // FloorPlan/Header 전용
+  const targetSubIds = useMemo(() => targetPanels.map(p => p.id), [targetPanels]);
 
-  const clearTargetPanels = useCallback(async () => {
-    try { await fetch('/api/active-panels', { method: 'DELETE' }); } catch {}
-    lastFetchedRef.current = '[]';
-    setTargetPanels([]);
-  }, []);
-
-  // 버튼 클릭 시 카메라 애니메이션 즉시 취소 + 홈 복귀
   const handleRegister = useCallback(() => {
     sceneRef.current?.cancelAnimation();
     setShowRegistration(true);
@@ -191,7 +212,7 @@ export default function App() {
 
           <div className="relative flex-1 rounded-xl overflow-hidden border-2 border-sky-500/50 shadow-[0_0_0_1px_rgba(14,165,233,0.15),0_0_60px_rgba(14,165,233,0.18),inset_0_0_30px_rgba(14,165,233,0.04)] min-h-0">
 
-            {/* 패널 알람 오버레이: 항상 div 존재 → Canvas의 children index 고정 */}
+            {/* 패널 알람 오버레이 */}
             <div className={`absolute top-3 left-3 right-1/2 z-30 flex flex-col gap-0.5 pointer-events-none ${targetPanels.length === 0 ? 'hidden' : ''}`}>
               {targetPanels.map(p => {
                 const info = PANEL_DATA[p.id];
@@ -214,13 +235,8 @@ export default function App() {
               })}
             </div>
 
-            {/* ThreeDView: 마운트 후 절대 재렌더링 없음 */}
-            <ThreeDView
-              sceneRef={sceneRef}
-              clearActivePanels={clearTargetPanels}
-              onCameraUpdate={setCameraPos}
-              isOperationActiveRef={isOperationActiveRef}
-            />
+            {/* 별도 React 루트 컨테이너 — App 리렌더링과 완전 격리 */}
+            <div ref={canvasContainerRef} className="absolute inset-0" />
           </div>
 
           <div className="shrink-0 flex items-center justify-end px-4 py-1.5 rounded-xl border border-sky-900/40 bg-slate-900/60">

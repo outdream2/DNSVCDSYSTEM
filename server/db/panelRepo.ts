@@ -14,7 +14,10 @@ export interface ActivePanel {
   description: string;
 }
 
-const STATE_FILE = path.join(process.cwd(), 'panels-state.json');
+// data/ 디렉토리는 tsx watch 감시 범위 밖 → 파일 쓰기로 서버 재시작 방지
+const DATA_DIR = path.join(process.cwd(), 'data');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const STATE_FILE = path.join(DATA_DIR, 'panels-state.json');
 
 function loadFromFile(): ActivePanel[] {
   try {

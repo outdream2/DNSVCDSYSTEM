@@ -16,8 +16,11 @@ export default defineConfig(({mode}) => {
       },
     },
     server: {
+      watch: {
+        // data 폴더 내의 JSON 파일 쓰기가 브라우저 새로고침을 일으키지 않도록 제외
+        ignored: ['**/data/**', '**/panels-state.json']
+      },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
     },
   };
