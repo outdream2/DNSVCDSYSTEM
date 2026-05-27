@@ -4,7 +4,30 @@
       "Bash(npm install *)",
       "Bash(npm run *)",
       "Bash(git init *)",
-      "Skill(update-config)"
+      "Skill(update-config)",
+      "Bash(tsx server.ts)",
+      "Read(//tmp/**)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s http://localhost:8000/api/active-panels)",
+      "Bash(curl -s \"http://localhost:8000/api/operations?status=진행중\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'operations: {len\\(d[\\\\\"operations\\\\\"]\\)}건'\\)\")",
+      "Bash(curl -s \"http://localhost:8000/api/operations\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); ops=d['operations']; print\\(f'전체: {len\\(ops\\)}건'\\); print\\(f'진행중: {len\\([o for o in ops if o[\\\\\"status\\\\\"]==\\\\\"진행중\\\\\"]\\)}건'\\); print\\(f'완료: {len\\([o for o in ops if o[\\\\\"status\\\\\"]==\\\\\"완료\\\\\"]\\)}건'\\)\")",
+      "Bash(curl -s http://localhost:8000/api/operations)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(npx kill-port *)",
+      "Bash(node_modules/.bin/tsx server.ts)",
+      "Bash(curl -s \"http://localhost:8000/api/operations?status=%EC%A7%84%ED%96%89%EC%A4%91\")",
+      "Bash(curl -s -X POST http://localhost:8000/api/operations -H 'Content-Type: application/json' -d '{\"panelId\":5,\"unitId\":\"UNIT-03A\",\"panelName\":\"IDF-B\",\"opType\":\"KEY OPEN\",\"operator\":\"테스트\",\"department\":\"전기팀\",\"purpose\":\"테스트 작업\",\"notes\":\"\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/active-panels -H 'Content-Type: application/json' -d '[{\"id\":5,\"status\":\"ON\",\"description\":\"UNIT-03A\"}]')",
+      "Bash(curl -s -X DELETE http://localhost:8000/api/active-panels)",
+      "Bash(curl -s -X PATCH http://localhost:8000/api/operations/complete -H 'Content-Type: application/json' -d '{\"ids\":[11,14,15]}')",
+      "Bash(npx kill-port)",
+      "Bash(npx tsc *)",
+      "mcp__ide__getDiagnostics",
+      "Bash(taskkill *)",
+      "PowerShell(Stop-Process *)",
+      "Bash(npx tsx *)"
     ]
   }
 }
